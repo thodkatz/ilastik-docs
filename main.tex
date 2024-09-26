@@ -223,6 +223,11 @@ As we have seen, we will rely on existing machine learning logging frameworks. M
 
 High level diagram of what user will do. Provides input data, and ground truth.
 
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=\textwidth]{architecture.png}
+\end{figure}
+
 \section{Remote server requirements}
 
 As we have seen we need to be able to save logs and the checkpoints. So apart from GPU resources needed for training, we need to have write access to the disk of the remote server. Alternatively, if this isn't possible, then the logs and the checkpoints should be streamed over grpc.
