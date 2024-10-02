@@ -62,6 +62,7 @@ Neural network training workflow in Ilastik\\[1cm]
 \clearpage
 
 \section{Introduction}
+\label{sec:intro}
 
 Ilastik is a desktop application that bridges the gap between machine learning and out of the box functionality intended for the bioimaging domain. For more about ilastik, check the documentation at \url{https://ilastik.github.io/}.
 
@@ -123,65 +124,70 @@ P0 - Must have
 \section{Deep learning models to use}
 \label{sec:deep_models}
 
-To satisfy \textbf{P0.0}, and \textbf{P0.5}, U-Net architecture \cite{ronnebergerUNetConvolutionalNetworks2015} will serve as the foundational one for semantic segmentation, while exposing variations such as U-Net-ResNet18, U-Net-Resnet50, etc. The 3d dataset requirement can be satisfied by using the 3d equivalent component for the 2d ones. The selection will be filtered initially by the type of the dataset, e.g. 3 dimensions (x,y,channel) for 2d datasets  and 4 dimensions (x,y,z,channel) for 3d datasets \footnote{2d and 3d images are usually refered to the spatial axes, that's why a 3d image is actually 4d, and 2d is 3d.}. What about time? 
+Our goal is to provide a user-friendly, as much as possible agnostic neural network training workflow for semantic segmentation.
 
-Regarding the U-Net variations, using ResNet as backbone comes with a computational cost. Thus, we could expose U-Net implementations with a fixed number of plain convolutional and pooling layers. Potentially we could expose to configure a custom U-Net with an arbitrary number of layers. Another direction would be to leverage foundational models such as the Segment Anything For Microscopy with fine-tuning.
+There are several approaches such as:
+\begin{itemize}
+    \item cellpose
+    \item bellybutton
+    \item deepcell
+    \item stardist
+    \item unet++
+    \item deeplabv3++
+    \item sam for microscopy
+    \item cellseg
+    \item opsef-iv
+    \item deepmib
+    \item delta, delta 2.0, compared with ilastik
+\end{itemize}
 
-In theory, the list of the available models to choose could be updated over the course of the project and the design should be flexible enough to accommodate this.
+We assume that the most generalized approach that fits our needs is cellpose. We could later on investigate more sophisticated workflows that would require more user feedback to tune a model \fullref{sec:next_steps}.
 
-We assume a fair amount of understanding from the user to estimate the complexity of the model for the target dataset. We can use as default a moderate complexity model (e.g. U-Net-ResNet-50).
+Some challenges that these models aims to address are:
+\begin{itemize}
+    \item Multiple resolution segmentation
+\end{itemize}
 
-What about plant-seg?
+Should we split the models based on:
+\begin{itemize}
+    \item imaging technique e.g. EM, LM, CryoEM
+    \item dimensions 2d, 3d
+    \item object e.g. nuclei, mito
+\end{itemize}
 
+We need a survey and benchmarking of the state-of-the-art segmentation pipelines for miscrocopy images.
 
-\subsection{ResNet}
-
-The number of layers is based on \cite{heDeepResidualLearning2015}.
-
-\begin{enumerate}
-    \item U-Net-ResNet-18
-    \item U-Net-Resnet-34
-    \item U-Net-ResNet-50
-    \item U-Net-ResNet-101
-\end{enumerate}
-
-These could have the option of being pretrained or not to ImageNet for the 2d datasets. What about kernel inflation to leverage pretrained models for the 2d images?
-
-\subsection{Plain}
-
-Plain U-Net configurations could be:
-\begin{enumerate}
-    \item U-Net with 4 convolutional layers and 1 pooling
-    \item ?
-\end{enumerate}
-
-
-\subsection{Summary}
-
-Make a table of the proposed models.
+On the other hand, as it was mentioned in the \fullref{sec:intro}, we could narrow the focus to provide a workflow that can realize the shallow2deep pipeline. In that case, there are two networks. The enhancer, and the segmentor. The enhancer was a u-net with what hyperparameters, and the segmentor was a u-net with what hyperparameters.
 
 \subsection{Framework}
 
 All the models will be implemented in PyTorch. What about integration with other existing implementations in Tensorflow? Should we take ths into account as well?
 
-\section{Dataset size and tiling training}
+\section{Tiling training}
 \label{sec:tiling}
 
 As we have mentioned, our task would be semantic segmentation, and we could provide some generic model architectures \fullref{sec:deep_models}. Another challenge would be to handle an arbitrary dataset size.
 
-Memory constraints may not allow for a model to be trained on full images. Thus tiling based training needs to be supported. To determine if training should be based on tiles, we need to take into account the most crucial memory factors which are batch size, image shape (2d or 3d), and model's complexity (e.g. number of feature maps).
+Memory constraints may not allow for a model to be trained on full images. Thus, tiling based training needs to be supported. To determine if training should be based on tiles, we need to take into account the most crucial memory factors which are batch size, image shape (2d or 3d), and model's complexity (e.g. number of feature maps).
 
 For the option of tiling based training, we need to configure the halo, and the patch size. These should be exposed to the user with sensible defaults.
 
-Should we do inference on a patch that it is different than the one in the training?
+Should we do inference on a patch that it is different from the one in the training?
 
 Currently, Ilastik has some hard-coded values for the patch size for 3d and 2d images. This is just a heuristic, and we aim to improve this. The same problem applies for the training as well.
 
-\subsection{Memory constraints}
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=\textwidth]{tiling.png}
+    \caption{Demonstration of tiling for a 2d dataset. Patch $\equiv$ Tile}
+\end{figure}
 
-Memory constraints are referred to the GPU usage. We assume that for neural network training a GPU is required. Thus we should possibly monitor the most impactful parameters that determine the memory usage.
 
-Make a flowchart. What would be our memory parameter to decide about if my model fit to memory?
+\subsection{Memory monitoring}
+
+Memory constraints are referred to the GPU usage. We assume that for neural network training a GPU is required. Thus, we should possibly monitor the most impactful parameters that determine the memory usage.
+
+Make a flowchart. What would be our memory parameter to decide about if my model fit to memory? This is an open-ended question. We could somehow monitor memory usage and suggest the user to reduce batch size, smaller tiles, or change model complexity? Or we just catch memory exceeded limit errors.
 
 \section{Hyperparameter turning}
 
@@ -197,6 +203,7 @@ A list of hyperparameters could include:
     \item Optimizer (e.g. Adam, SGD)
     \item Learning rate
     \item Batch normalization
+    \item Layer normalization
     \item Dropout layers
     \item Type of padding
     \item Loss function
@@ -206,9 +213,29 @@ A list of hyperparameters could include:
 
 
 
-\section{Preprocessing}
+\section{Pre-processing}
 
-What about preprocessing and normalization? Downscaling? Augmentations?
+\begin{itemize}
+    \itemsep -0.2em
+    \item Downscaling
+    \item Augmentations
+    \item Oversampling
+    \item Normalization
+\end{itemize}
+
+\section{Dataloading}
+
+Dataloader questions:
+\begin{itemize}
+    \itemsep -0.2em
+    \item Do you shuffle the data?
+    \item How do you handle when $\frac{\text{NumSamples}}{\text{BatchSize}} \% 1 \neq 0$? Drop last batch? Repeat samples (oversampling)?
+    \item For the tiling the batch should be filled across images or within image?
+\end{itemize}
+
+\section{Post-processing}
+
+What does bioimage core for post-processing?
 
 
 \section{Logging}
@@ -227,6 +254,11 @@ High level diagram of what user will do. Provides input data, and ground truth.
     \centering
     \includegraphics[width=\textwidth]{architecture.png}
 \end{figure}
+
+Considerations:
+\begin{itemize}
+    \item What channel to use for segmentation?
+\end{itemize}
 
 \section{Remote server requirements}
 
