@@ -38,7 +38,7 @@
 
 
 \title{
-Neural network training workflow in Ilastik\\[1cm]
+shallow2deep workflow in ilastik\\[1cm]
 
 \includegraphics[width=0.5\textwidth]{ilastik-logo.png}
 }
@@ -68,7 +68,11 @@ Ilastik is a desktop application that bridges the gap between machine learning a
 
 The main takeaway of the currently supported functionality is that training is only possible with shallow models (e.g. random forests), and neural network workflows are used only for inference. Our endeavor would be to integrate neural network training in ilastik.
 
-The main motivation of this work originates by the shallow to deep project \cite{Matskevych2021.11.09.467925}. Its core idea is that domain adaptation can achieve greater performance by incorporating a shallow model as a preliminary step. Instead of trying to learn the mapping of raw data to the ground truth segmentations, we can learn the mapping of the output of the shallow model to the ground truth segmentations (enhancer). For a new dataset, the pretrained enhancer attempts to correct the result of the new trained shallow model. A subsequent part would be as well to train a new neural network model (segmentor) for semantic segmentation from raw images, but this time to use the output of the pretrained enhancer as pseudo labels. The whole workflow can be illustrated in the following figure:
+The main motivation of this work originates by the shallow to deep project \cite{Matskevych2021.11.09.467925}. Its core idea is that supervised domain adaptation can achieve greater performance by incorporating a shallow model as a preliminary step. Supervised domain adaptation could be split to 1) train a model on a source domain given annotated datasets, and then 2) transfer it to a target one, while aiming to mitigate the domain shift.
+
+Regarding the first part, the learning of the mapping from raw data to the ground truth segmentations via a deep model, is replaced by a shallow one, a random forest. Then a deep model learns to map the output of the shallow model (probability maps) to the ground truth segmentations (enhancer).
+
+Regarding knowledge transfer to a target dataset, a random forest is initially trained utilizing ilastik's functionality by providing a few annotations. Then, the pretrained enhancer attempts to correct the result of the new trained shallow model on the target domain. Subsequently, a deep learning model (segmentor) is trained for semantic segmentation from raw images, but this time using the output of the pretrained enhancer as pseudo labels. The whole workflow can be illustrated in the following figure:
 
 \begin{figure}[h!]
     \centering
@@ -76,9 +80,8 @@ The main motivation of this work originates by the shallow to deep project \cite
     \caption{Shallow to deep \cite{Matskevych2021.11.09.467925}}
 \end{figure}
 
-Having as a reference point the above workflow, ilastik provides the functionality for training the random forests, but not the enhancer and the segmentor. Our goal is to achieve the whole workflow with ilastik.
+Currently, ilastik provides the above workflow, but it is missing the segmentor part. The goal is to implement the feature of training the segmentor. This will serve as the starting point for more sophisticated training workflows in the future. For next steps, refer to \fullref{sec:next_steps}.
 
-Effectively to realize the above, we will attempt to implement a supervised machine learning workflow in ilastik. This will serve as the starting point for more sophisticated training workflows in the future. For next steps, refer to \fullref{sec:next_steps}.
 
 \clearpage
 
@@ -90,78 +93,62 @@ Effectively to realize the above, we will attempt to implement a supervised mach
     \caption{Ecosystem}
 \end{figure}
 
-The BioImage Model Zoo provides the infrastructure to define, store, and retrieve deep learning models for the bioimage community. Currently, there are two fundamental packages, the spec-bioimage-io (\url{https://github.com/bioimage-io/spec-bioimage-io}), and the core-bioimage-io-python (\url{https://github.com/bioimage-io/core-bioimage-io-python}). In a nutshell, the first one defines a specification that describes a deep learning model (e.g. type of inputs, outputs, weights, documentation), and provides the functionality of loading and saving it. The second one is mainly responsible to run a model (e.g. inference with tiling).
+The BioImage Model Zoo provides the infrastructure to specify, store, and retrieve \textbf{trained} deep learning models for the bioimage community. It should be emphasized that the models are trained, and the intended usage of them is only for inference. Currently, there are two fundamental packages, the spec-bioimage-io (\url{https://github.com/bioimage-io/spec-bioimage-io}), and the core-bioimage-io-python (\url{https://github.com/bioimage-io/core-bioimage-io-python}). The first one defines a specification that describes a deep learning model (e.g. type of inputs, outputs, weights, documentation), and provides the functionality of loading and saving it. The second one is mainly responsible to run a model (e.g. inference with tiling). For more you can refer to the publication \cite{Ouyang2022.06.07.495102}.
 
-Tiktorch (\url{https://github.com/ilastik/tiktorch}) attempts to manage the heavy load and orchestration of running deep learning models. The idea is that the last one is a computationally expensive task, so it could be decoupled from the client to a more suitable infrastracture (remote server). Effectively, it leverages BioImage Model Zoo to do the inference and loading of the models. Tiktorch is our backend system, and Ilastik the client.
+Tiktorch (\url{https://github.com/ilastik/tiktorch}) attempts to manage the heavy load and orchestration of running deep learning models. The idea is that the last one is a computationally expensive task, so it could be decoupled from the client to a more suitable infrastructure (remote server). Effectively, it leverages BioImage Model Zoo to do the inference and loading of the models. Tiktorch is our backend system, and ilastik the client.
 
-Ilastik handles all the workflows related with shallow models. For the deep learning ones, it sends requests to Tiktorch to run the models and fetch the predictions. To avoid unnecessary communication delays for invalid requests, Ilastik does some initial validation using the BioImage Model Zoo. Regarding validation of requests refer to \fullref{sec:validation}.
+Ilastik handles all the workflows related with shallow models. For the deep learning ones, it sends requests to tiktorch to run the models and fetch the predictions. To avoid unnecessary communication delays for invalid requests, ilastik does some initial validation using the BioImage Model Zoo. Regarding validation of requests refer to \fullref{sec:validation}.
 
 
 
-\section{Current state of tiktorch}
 
-As we have seen Tiktorch is our backend system to run the heavy load of neural networks. It supports inference of neural networks using the  BioImage Model Zoo. Let's see what is the current state of it.
+\section{Supervised training in ilastik}
 
-producer-consumer
-
-threads, processes, orchestration
-
-\section{Supervised training in Ilastik}
+As we have seen in the \fullref{sec:intro}, integrating supervised training for the semantic segmentation task, for the scope of the current project, will be narrowed down to the specific use case of the domain adaptation workflow. Overall, standardizing and exposing deep learning training would be the ideal goal. For more, you can refer to the \fullref{sec:next_steps}.
 
 The requirements are:
 
 P0 - Must have
 \begin{itemize}
-    \item \textbf{P0.0} Ilastik must support 2d and 3d deep learning training for the semantic segmentation task.
-    \item \textbf{P0.1} Training must be possible locally or remotely with GPU support.
-    \item \textbf{P0.2} Ilastik must be able to render the progress of training. Rendering of the progress can be asynchronous.
-    \item \textbf{P0.3} Ilastik must be able to resume, pause, and cancel a training process.
-    \item \textbf{P0.4} Ilastik must be able to provide optional configuration of the model.
-    \item \textbf{P0.5} Ilastik must be able to expose different model architectures (e.g. U-Net variations, ResNet).
+    \item \textbf{P0.0} ilastik must support 2d and 3d deep learning training for the segmentor training.
+    % \item \textbf{P0.4} ilastik must be able to provide optional hyperparameter tuning.
+    \item \textbf{P0.1} ilastik must provide training locally or remotely with GPU support.
+    \item \textbf{P0.2} ilastik must be able to render the progress of training. Rendering of the progress can be asynchronous.
+    \item \textbf{P0.3} ilastik must be able to resume, pause, save, and cancel a training process.
 \end{itemize}
 
 
 \section{Deep learning models to use}
 \label{sec:deep_models}
 
-Our goal is to provide a user-friendly, as much as possible agnostic neural network training workflow for semantic segmentation.
+The models that are used for the enhancers can be found in \href{https://github.com/constantinpape/torch-em/tree/dd3519ac616920f541bcebe6e4e09914d7d8ce96/experiments/shallow2deep}{torch-em}. It is a list of 2d, and 3d models for nuclei, mito, and boundaries/membranes segmentation. These are meant to be provided and used for inference to get the pseudolabels. This is already supported by ilastik's workflow of domain adaptation.
 
-There are several approaches such as:
-\begin{itemize}
-    \item cellpose
-    \item bellybutton
-    \item deepcell
-    \item stardist
-    \item unet++
-    \item deeplabv3++
-    \item sam for microscopy
-    \item cellseg
-    \item opsef-iv
-    \item deepmib
-    \item delta, delta 2.0, compared with ilastik
-\end{itemize}
-
-We assume that the most generalized approach that fits our needs is cellpose. We could later on investigate more sophisticated workflows that would require more user feedback to tune a model \fullref{sec:next_steps}.
-
-Some challenges that these models aims to address are:
-\begin{itemize}
-    \item Multiple resolution segmentation
-\end{itemize}
-
-Should we split the models based on:
-\begin{itemize}
-    \item imaging technique e.g. EM, LM, CryoEM
-    \item dimensions 2d, 3d
-    \item object e.g. nuclei, mito
-\end{itemize}
-
-We need a survey and benchmarking of the state-of-the-art segmentation pipelines for miscrocopy images.
-
-On the other hand, as it was mentioned in the \fullref{sec:intro}, we could narrow the focus to provide a workflow that can realize the shallow2deep pipeline. In that case, there are two networks. The enhancer, and the segmentor. The enhancer was a u-net with what hyperparameters, and the segmentor was a u-net with what hyperparameters.
+Should the models' architecture of the segmentor match the ones used for the enhancers?
 
 \subsection{Framework}
 
-All the models will be implemented in PyTorch. What about integration with other existing implementations in Tensorflow? Should we take ths into account as well?
+
+\section{Hyperparameter turning}
+
+Each of the models mentioned \fullref{sec:deep_models}, they could have their own set of parameters to tune \footnote{U-Net-ResNet variations will have the same type of parameters such as batch size, learning rate optimizer, but if we support models such as custom U-Net, a new set of parameters needs to be configured such as the number of layers, number of pooling layers etc.}. Hyperparameter tuning is a heavy computational task. We could have some fixed values, and \textbf{optionally} allowing for tuning them given a user defined range of parameters.
+
+One challenge is what kind of parameters should be tuned, and what type of hyperparameter strategy should we follow (e.g. grid search, bayesian optimization, random search).
+
+A list of hyperparameters could include:
+\begin{itemize}
+    \itemsep -0.2em
+    \item Epochs
+    \item Batch size
+    \item Optimizer (e.g. Adam, SGD)
+    \item Learning rate
+    \item Batch normalization
+    \item Layer normalization
+    \item Dropout layers
+    \item Type of padding
+    \item Loss function
+    \item Kernel size, stride
+    \item Patch size (\fullref{sec:tiling})
+\end{itemize}
 
 \section{Tiling training}
 \label{sec:tiling}
@@ -189,27 +176,7 @@ Memory constraints are referred to the GPU usage. We assume that for neural netw
 
 Make a flowchart. What would be our memory parameter to decide about if my model fit to memory? This is an open-ended question. We could somehow monitor memory usage and suggest the user to reduce batch size, smaller tiles, or change model complexity? Or we just catch memory exceeded limit errors.
 
-\section{Hyperparameter turning}
 
-Each of the models mentioned \fullref{sec:deep_models}, they could have their own set of parameters to tune \footnote{U-Net-ResNet variations will have the same type of parameters such as batch size, learning rate optimizer, but if we support models such as custom U-Net, a new set of parameters needs to be configured such as the number of layers, number of pooling layers etc.}. Hyperparameter tuning is a heavy computational task. We could have some fixed values, and \textbf{optionally} allowing for tuning them given a user defined range of parameters.
-
-One challenge is what kind of parameters should be tuned, and what type of hyperparameter strategy should we follow (e.g. grid search, bayesian optimization, random search).
-
-A list of hyperparameters could include:
-\begin{itemize}
-    \itemsep -0.2em
-    \item Epochs
-    \item Batch size
-    \item Optimizer (e.g. Adam, SGD)
-    \item Learning rate
-    \item Batch normalization
-    \item Layer normalization
-    \item Dropout layers
-    \item Type of padding
-    \item Loss function
-    \item Kernel size, stride
-    \item Patch size (\fullref{sec:tiling})
-\end{itemize}
 
 
 
@@ -244,6 +211,23 @@ To monitor the progress of the training, we need a logging framework. There are 
 
 
 As we have seen, we will rely on existing machine learning logging frameworks. More specifically, we will assume that the logs are saved on the disk and Ilastik is able to read from that.
+
+\section{Segmentation masks}
+
+\begin{itemize}
+    \item Boundary based segmentation masks
+    \item Semantic 
+    \item Instance
+\end{itemize}
+
+
+\section{Current state of tiktorch}
+
+As we have seen tiktorch is our backend system to run the heavy load of neural networks. It supports inference of neural networks using the  BioImage Model Zoo. Let's see what is the current state of it.
+
+producer-consumer
+
+threads, processes, orchestration
 
 
 \section{Architecture}
